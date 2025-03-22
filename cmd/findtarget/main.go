@@ -6,8 +6,8 @@ import (
 	"os"
 
 	"github.com/e1l1ya/findtarget/internal/platform"
-	"github.com/e1l1ya/findtarget/internal/runner"
-	"github.com/e1l1ya/findtarget/pkg/types"
+    	"github.com/e1l1ya/findtarget/internal/runner"
+    	"github.com/e1l1ya/findtarget/pkg/types"
 	"github.com/joho/godotenv"
 	"github.com/spf13/pflag"
 )
