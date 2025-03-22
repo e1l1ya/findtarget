@@ -12,9 +12,7 @@
 ## Installation
 
 ```sh
-git clone https://github.com/e1l1ya/findtarget.git
-cd findtarget
-go mod tidy
+go install github.com/e1l1ya/findtarget/cmd/findtarget@latest
 ```
 
 ## Usage
