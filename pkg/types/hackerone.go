@@ -21,7 +21,6 @@ type HackerOneLink struct {
 
 type HackerOneConfig struct {
 	Reward      string `yaml:"reward"`
-	Sort        string `yaml:"sort"`
 	Category    string `yaml:"category"`
 	Scope       string `yaml:"scope"`
 	MaxPrograms int8   `yaml:"maxPrograms"`
@@ -59,9 +58,6 @@ type H1Links struct {
 }
 
 func (b *HackerOneConfig) SetDefaults() {
-	if b.Sort == "" {
-		b.Sort = ""
-	}
 	if b.Scope == "" { // Ensuring WideScope is explicitly set to false
 		b.Scope = "all"
 	}

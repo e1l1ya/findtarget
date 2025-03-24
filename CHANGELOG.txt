@@ -1,0 +1,4 @@
+## [1.0.0] - 2025-03-24
+### Added
+- Main.go check if env not exists stop the script
+- Now it can be silent with a switch
