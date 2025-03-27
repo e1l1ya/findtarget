@@ -8,3 +8,4 @@ findtarget:
     category: website
     scope: wide
     maxPrograms: 2
+proxy: socks5://127.0.0.1:9050

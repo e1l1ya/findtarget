@@ -212,10 +212,10 @@ func Bugcrowd(config *types.Config) error {
 						var name string = extractURL(target.Name)
 						var uri string = extractURL(target.URI)
 						if config.FindTarget.BugCrowd.Scope != "all" {
-							if isURL(name) && config.FindTarget.BugCrowd.Scope == "direct" {
+							if isURL(name) && config.FindTarget.BugCrowd.Scope == "narrow" && !strings.HasPrefix(name, "*") {
 								fmt.Println(name)
 								has_host = true
-							} else if isURL(uri) && config.FindTarget.BugCrowd.Scope == "direct" {
+							} else if isURL(uri) && config.FindTarget.BugCrowd.Scope == "narrow" && !strings.HasPrefix(name, "*") {
 								fmt.Println(uri)
 								has_host = true
 							} else if strings.HasPrefix(name, "*.") && config.FindTarget.BugCrowd.Scope == "wide" {
@@ -226,10 +226,10 @@ func Bugcrowd(config *types.Config) error {
 								}
 							}
 						} else {
-							if isURL(name) {
+							if isURL(name) && !strings.HasPrefix(name, "*") {
 								fmt.Println(name)
 								has_host = true
-							} else if isURL(uri) {
+							} else if isURL(uri) && !strings.HasPrefix(name, "*") {
 								fmt.Println(uri)
 								has_host = true
 							} else if strings.HasPrefix(name, "*.") {

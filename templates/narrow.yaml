@@ -2,10 +2,9 @@ findtarget:
   bugcrowd:
     reward: points
     category: website
-    scope: wide
-    maxPrograms: 1
+    scope: narrow
+    maxPrograms: 2
   hackerone:
-    reward: points
     category: website
-    scope: wide
+    scope: narrow
     maxPrograms: 2
