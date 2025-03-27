@@ -1,6 +1,5 @@
 findtarget:
   bugcrowd:
-    reward: points
     category: website
     scope: wide
     maxPrograms: 2

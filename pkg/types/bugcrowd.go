@@ -6,6 +6,7 @@ type BugCrowdConfig struct {
 	Category    string `yaml:"category"`
 	Scope       string `yaml:"scope"`
 	MaxPrograms int16  `yaml:"maxPrograms"`
+	Include     []string `yaml:"include"`
 }
 
 func (b *BugCrowdConfig) SetDefaults() {

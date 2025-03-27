@@ -1,0 +1,13 @@
+findtarget:
+  hackerone:
+    scope: all
+    include:
+      - "https://hackerone.com/indrive?type=team"
+      - "https://hackerone.com/render?type=team"
+  bugcrowd:
+    scope: all
+    include:
+      - "https://bugcrowd.com/engagements/pexels"
+      - "https://bugcrowd.com/engagements/spacex"
+
+  

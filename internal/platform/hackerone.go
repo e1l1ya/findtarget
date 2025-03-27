@@ -3,143 +3,209 @@ package platform
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/e1l1ya/findtarget/pkg/types"
 )
 
-func HackerOne(config *types.Config, env *types.EnvConfig) error {
-	baseURL := "https://api.hackerone.com/v1/hackers/programs"
+const hackerOneBaseURL = "https://api.hackerone.com/v1/hackers/programs"
 
+// HackerOne fetches data from the HackerOne API and processes it based on the configuration.
+func HackerOne(config *types.Config, env *types.EnvConfig) error {
+	client := &http.Client{}
 	headers := map[string][]string{
 		"Accept": {"application/json"},
 	}
 
-	client := &http.Client{}
+	// Check if the config has an "Include" array
+	if len(config.FindTarget.HackerOne.Include) > 0 {
+		// Define a regex to extract the handle from the URL
+		handleRegex := regexp.MustCompile(`https://hackerone\.com/([^?]+)`)
+
+		for _, includeURL := range config.FindTarget.HackerOne.Include {
+			// Extract the handle using the regex
+			matches := handleRegex.FindStringSubmatch(includeURL)
+			if len(matches) < 2 {
+				fmt.Printf("Invalid HackerOne URL: %s\n", includeURL)
+				continue
+			}
+			handle := matches[1]
+
+			fmt.Println(handle)
+
+			// Process the program using the extracted handle
+			hasHost, err := processHackerOneProgram(client, handle, headers, env, config)
+			if err != nil {
+				return err
+			}
+
+			// If MaxPrograms is set, limit the number of processed programs
+			if config.FindTarget.HackerOne.MaxPrograms != 0 && hasHost {
+				return nil
+			}
+		}
+		return nil // Skip the rest of the logic if "Include" is used
+	}
+
+	baseURL := hackerOneBaseURL
 	var limit int8 = 0
-	var has_host bool = false
 
 	for baseURL != "" {
-		req, err := http.NewRequest("GET", baseURL, nil)
+		// Fetch programs from HackerOne
+		result, nextURL, err := fetchHackerOnePrograms(client, baseURL, headers, env)
 		if err != nil {
-			fmt.Println("Error creating request")
 			return err
 		}
-		req.Header = headers
-		req.SetBasicAuth(env.H1Username, env.H1APIKey)
+		baseURL = nextURL
 
-		resp, err := client.Do(req)
-		if err != nil {
-			fmt.Println("Error sending request:", err)
-			return err
-		}
-		defer resp.Body.Close()
-
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			fmt.Println("Error reading response body:", err)
-			return err
-		}
-
-		// Parse JSON response into the struct
-		var result types.HackerOneResponse
-		err = json.Unmarshal(body, &result)
-		if err != nil {
-			fmt.Println("Error parsing JSON:", err)
-			return err
-		}
-
-		// Update the baseURL to the next page URL
-		baseURL = result.Links.Next
-
-		// Iterate over each program
+		// Process each program
 		for _, program := range result.Data {
-
 			if config.FindTarget.HackerOne.MaxPrograms != 0 && limit >= config.FindTarget.HackerOne.MaxPrograms {
 				return nil
 			}
 
-			Handle := program.Attributes.Handle
-			programURL := fmt.Sprintf("https://api.hackerone.com/v1/hackers/programs/%s/structured_scopes?page[size]=100", Handle)
-
-			programRequest, err := http.NewRequest("GET", programURL, nil)
+			hasHost, err := processHackerOneProgram(client, program.Attributes.Handle, headers, env, config)
 			if err != nil {
-				fmt.Println("Error creating request")
-				return err
-			}
-			programRequest.Header = headers
-			programRequest.SetBasicAuth(env.H1Username, env.H1APIKey)
-
-			programResponse, err := client.Do(programRequest)
-			if err != nil {
-				fmt.Println("Error sending request:", err)
-				return err
-			}
-			defer programResponse.Body.Close()
-
-			programBody, err := ioutil.ReadAll(programResponse.Body)
-			if err != nil {
-				fmt.Println("Error reading response body:", err)
 				return err
 			}
 
-			// Define type of response
-			var programResult types.H1ProgramStruct
-
-			// Check if the programResultString contains "URL" or "WILDCARD"
-			if !strings.Contains(string(programBody), "URL") && !strings.Contains(string(programBody), "WILDCARD") {
-				continue
-			}
-
-			err = json.Unmarshal(programBody, &programResult)
-			if err != nil {
-				fmt.Println("Error parsing JSON:", err)
-				return err
-			}
-
-			// Print the ID of each H1ScopeData
-			for _, scopeData := range programResult.Data {
-
-				if config.FindTarget.HackerOne.Scope == "wide" && strings.ToLower(scopeData.Attributes.AssetType) == "wildcard" {
-					if strings.Contains(scopeData.Attributes.AssetIdentifier, ",") {
-						hosts := strings.Split(scopeData.Attributes.AssetIdentifier, ",")
-						host := strings.Replace(hosts[0], "*.", "", 1)
-						fmt.Println(host)
-						has_host = true
-						continue
-					}
-
-					if strings.Contains(scopeData.Attributes.AssetIdentifier, "*") {
-						host := strings.Replace(scopeData.Attributes.AssetIdentifier, "*.", "", 1)
-						fmt.Println(host)
-						has_host = true
-					}
-				} else if config.FindTarget.HackerOne.Scope == "narrow" && strings.ToLower(scopeData.Attributes.AssetType) == "url" {
-
-					if strings.Contains(scopeData.Attributes.AssetIdentifier, ",") {
-						hosts := strings.Split(scopeData.Attributes.AssetIdentifier, ",")
-						for _, host := range hosts {
-							if !strings.Contains(host, "*") {
-								fmt.Println(host)
-								has_host = true
-							}
-						}
-						continue
-					}
-
-					if !strings.Contains(scopeData.Attributes.AssetIdentifier, "*") {
-						fmt.Println(scopeData.Attributes.AssetIdentifier)
-						has_host = true
-					}
-				}
-			}
-			if config.FindTarget.HackerOne.MaxPrograms != 0 && has_host {
+			if config.FindTarget.HackerOne.MaxPrograms != 0 && hasHost {
 				limit++
-				has_host = false
 			}
 		}
 	}
+
 	return nil
+}
+
+// fetchHackerOnePrograms fetches a list of programs from HackerOne.
+func fetchHackerOnePrograms(client *http.Client, baseURL string, headers map[string][]string, env *types.EnvConfig) (types.HackerOneResponse, string, error) {
+	req, err := http.NewRequest("GET", baseURL, nil)
+	if err != nil {
+		return types.HackerOneResponse{}, "", fmt.Errorf("error creating request: %v", err)
+	}
+	req.Header = headers
+	req.SetBasicAuth(env.H1Username, env.H1APIKey)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return types.HackerOneResponse{}, "", fmt.Errorf("error sending request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return types.HackerOneResponse{}, "", fmt.Errorf("unexpected response status: %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return types.HackerOneResponse{}, "", fmt.Errorf("error reading response body: %v", err)
+	}
+
+	var result types.HackerOneResponse
+	if err := json.Unmarshal(body, &result); err != nil {
+		return types.HackerOneResponse{}, "", fmt.Errorf("error parsing JSON: %v", err)
+	}
+
+	return result, result.Links.Next, nil
+}
+
+// processHackerOneProgram processes a single HackerOne program and its scopes.
+func processHackerOneProgram(client *http.Client, handle string, headers map[string][]string, env *types.EnvConfig, config *types.Config) (bool, error) {
+	programURL := fmt.Sprintf("%s/%s/structured_scopes?page[size]=100", hackerOneBaseURL, handle)
+
+	req, err := http.NewRequest("GET", programURL, nil)
+	if err != nil {
+		return false, fmt.Errorf("error creating request: %v", err)
+	}
+	req.Header = headers
+	req.SetBasicAuth(env.H1Username, env.H1APIKey)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return false, fmt.Errorf("error sending request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return false, fmt.Errorf("unexpected response status: %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return false, fmt.Errorf("error reading response body: %v", err)
+	}
+
+	// Check if the response contains "URL" or "WILDCARD"
+	if !strings.Contains(string(body), "URL") && !strings.Contains(string(body), "WILDCARD") {
+		return false, nil
+	}
+
+	var programResult types.H1ProgramStruct
+	if err := json.Unmarshal(body, &programResult); err != nil {
+		return false, fmt.Errorf("error parsing JSON: %v", err)
+	}
+
+	return processScopes(programResult.Data, config), nil
+}
+
+// processScopes processes the scopes of a HackerOne program.
+func processScopes(scopes []types.H1ScopeData, config *types.Config) bool {
+	hasHost := false
+
+	for _, scopeData := range scopes {
+		assetType := strings.ToLower(scopeData.Attributes.AssetType)
+		assetIdentifier := scopeData.Attributes.AssetIdentifier
+
+		if config.FindTarget.HackerOne.Scope == "wide" && assetType == "wildcard" {
+			hasHost = processWildcardScope(assetIdentifier) || hasHost
+		} else if config.FindTarget.HackerOne.Scope == "narrow" && assetType == "url" {
+			hasHost = processURLScope(assetIdentifier) || hasHost
+		} else if config.FindTarget.HackerOne.Scope == "all" {
+			hasHost = processWildcardScope(assetIdentifier) || hasHost
+		}
+	}
+
+	return hasHost
+}
+
+// processWildcardScope processes a wildcard scope and prints the host.
+func processWildcardScope(assetIdentifier string) bool {
+	if strings.Contains(assetIdentifier, ",") {
+		hosts := strings.Split(assetIdentifier, ",")
+		host := strings.Replace(hosts[0], "*.", "", 1)
+		fmt.Println(host)
+		return true
+	}
+
+	if strings.Contains(assetIdentifier, "*") {
+		host := strings.Replace(assetIdentifier, "*.", "", 1)
+		fmt.Println(host)
+		return true
+	}
+
+	return false
+}
+
+// processURLScope processes a URL scope and prints the host.
+func processURLScope(assetIdentifier string) bool {
+	if strings.Contains(assetIdentifier, ",") {
+		hosts := strings.Split(assetIdentifier, ",")
+		for _, host := range hosts {
+			if !strings.Contains(host, "*") {
+				fmt.Println(host)
+			}
+		}
+		return true
+	}
+
+	if !strings.Contains(assetIdentifier, "*") {
+		fmt.Println(assetIdentifier)
+		return true
+	}
+
+	return false
 }
