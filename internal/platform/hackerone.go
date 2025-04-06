@@ -14,7 +14,7 @@ import (
 const hackerOneBaseURL = "https://api.hackerone.com/v1/hackers/programs"
 
 // HackerOne fetches data from the HackerOne API and processes it based on the configuration.
-func HackerOne(config *types.Config, env *types.EnvConfig) error {
+func HackerOne(config *types.Config) error {
 	client := &http.Client{}
 	headers := map[string][]string{
 		"Accept": {"application/json"},
@@ -37,7 +37,7 @@ func HackerOne(config *types.Config, env *types.EnvConfig) error {
 			fmt.Println(handle)
 
 			// Process the program using the extracted handle
-			hasHost, err := processHackerOneProgram(client, handle, headers, env, config)
+			hasHost, err := processHackerOneProgram(client, handle, headers, config)
 			if err != nil {
 				return err
 			}
@@ -55,7 +55,7 @@ func HackerOne(config *types.Config, env *types.EnvConfig) error {
 
 	for baseURL != "" {
 		// Fetch programs from HackerOne
-		result, nextURL, err := fetchHackerOnePrograms(client, baseURL, headers, env)
+		result, nextURL, err := fetchHackerOnePrograms(client, baseURL, headers, config)
 		if err != nil {
 			return err
 		}
@@ -67,7 +67,7 @@ func HackerOne(config *types.Config, env *types.EnvConfig) error {
 				return nil
 			}
 
-			hasHost, err := processHackerOneProgram(client, program.Attributes.Handle, headers, env, config)
+			hasHost, err := processHackerOneProgram(client, program.Attributes.Handle, headers, config)
 			if err != nil {
 				return err
 			}
@@ -82,13 +82,13 @@ func HackerOne(config *types.Config, env *types.EnvConfig) error {
 }
 
 // fetchHackerOnePrograms fetches a list of programs from HackerOne.
-func fetchHackerOnePrograms(client *http.Client, baseURL string, headers map[string][]string, env *types.EnvConfig) (types.HackerOneResponse, string, error) {
+func fetchHackerOnePrograms(client *http.Client, baseURL string, headers map[string][]string, config *types.Config) (types.HackerOneResponse, string, error) {
 	req, err := http.NewRequest("GET", baseURL, nil)
 	if err != nil {
 		return types.HackerOneResponse{}, "", fmt.Errorf("error creating request: %v", err)
 	}
 	req.Header = headers
-	req.SetBasicAuth(env.H1Username, env.H1APIKey)
+	req.SetBasicAuth(config.FindTarget.HackerOne.H1Username, config.FindTarget.HackerOne.H1Token)
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -114,7 +114,7 @@ func fetchHackerOnePrograms(client *http.Client, baseURL string, headers map[str
 }
 
 // processHackerOneProgram processes a single HackerOne program and its scopes.
-func processHackerOneProgram(client *http.Client, handle string, headers map[string][]string, env *types.EnvConfig, config *types.Config) (bool, error) {
+func processHackerOneProgram(client *http.Client, handle string, headers map[string][]string, config *types.Config) (bool, error) {
 	programURL := fmt.Sprintf("%s/%s/structured_scopes?page[size]=100", hackerOneBaseURL, handle)
 
 	req, err := http.NewRequest("GET", programURL, nil)
@@ -122,7 +122,7 @@ func processHackerOneProgram(client *http.Client, handle string, headers map[str
 		return false, fmt.Errorf("error creating request: %v", err)
 	}
 	req.Header = headers
-	req.SetBasicAuth(env.H1Username, env.H1APIKey)
+	req.SetBasicAuth(config.FindTarget.HackerOne.H1Username, config.FindTarget.HackerOne.H1Token)
 
 	resp, err := client.Do(req)
 	if err != nil {

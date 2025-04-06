@@ -25,6 +25,8 @@ type HackerOneConfig struct {
 	Scope       string `yaml:"scope"`
 	MaxPrograms int8   `yaml:"maxPrograms"`
 	Include     []string `yaml:"include"`
+	H1Username  string   `yaml:"h1Username"`
+	H1Token  string   `yaml:"h1Token"`
 }
 
 type H1ProgramStruct struct {
